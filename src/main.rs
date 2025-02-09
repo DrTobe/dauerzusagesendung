@@ -158,10 +158,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .get(1)
             .ok_or("panel id is misformed (no event on index 1)")?;
 
-        if event_kind != "training" {
-            continue;
-        }
-
         let zusage = match widget_buttons.select(&selected_selector).next() {
             Some(selected_button) => {
                 match selected_button
@@ -180,29 +176,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             None => {
-                let training_id = *event_id_parts
-                    .get(2)
-                    .ok_or("panel id is misformed (no training_id on index 2)")?;
-                log::info!("No Zusage yet for Training {training_id}");
-                let res = client
-                    .post("https://www.spielerplus.de/events/ajax-participation-form")
-                    .form(&[
-                        ("Participation[participation]", "1"),
-                        ("Participation[reason]", "Dauerzusage"),
-                        ("Participation[type]", "training"),
-                        ("Participation[typeid]", training_id),
-                        ("Participation[user_id]", &user_id),
-                    ])
-                    .send()?;
-                log::info!(
-                    "/events/ajax-participation-form response: {:?} {}",
-                    res.version(),
-                    res.status()
-                );
-                if res.status() != reqwest::StatusCode::from_u16(200).unwrap() {
-                    return Err(
-                        "/events/ajax-participation-form response status is not '200 OK'".into(),
+                if event_kind == "training" {
+                    let training_id = *event_id_parts
+                        .get(2)
+                        .ok_or("panel id is misformed (no training_id on index 2)")?;
+                    log::info!("No Zusage yet for Training {training_id}");
+                    let res = client
+                        .post("https://www.spielerplus.de/events/ajax-participation-form")
+                        .form(&[
+                            ("Participation[participation]", "1"),
+                            ("Participation[reason]", "Dauerzusage"),
+                            ("Participation[type]", "training"),
+                            ("Participation[typeid]", training_id),
+                            ("Participation[user_id]", &user_id),
+                        ])
+                        .send()?;
+                    log::info!(
+                        "/events/ajax-participation-form response: {:?} {}",
+                        res.version(),
+                        res.status()
                     );
+                    if res.status() != reqwest::StatusCode::from_u16(200).unwrap() {
+                        return Err(
+                            "/events/ajax-participation-form response status is not '200 OK'"
+                                .into(),
+                        );
+                    }
+                } else {
+                    print_emojis(":right_arrow:");
                 }
                 print_emojis(":pencil:")
             }

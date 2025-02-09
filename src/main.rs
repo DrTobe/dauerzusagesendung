@@ -180,12 +180,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             None => {
-                let training_id = panel
-                    .value()
-                    .attr("id")
-                    .ok_or("missing panel attr 'id'")?
-                    .strip_prefix("event-training-")
-                    .ok_or("panel attr 'id' does not start with 'event-training-'")?;
+                let training_id = *event_id_parts
+                    .get(2)
+                    .ok_or("panel id is misformed (no training_id on index 2)")?;
                 log::info!("No Zusage yet for Training {training_id}");
                 let res = client
                     .post("https://www.spielerplus.de/events/ajax-participation-form")

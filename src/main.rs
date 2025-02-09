@@ -61,10 +61,14 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let document = scraper::Html::parse_document(&text);
         let mut titles = document.select(&title_selector).map(|x| x.inner_html());
         if let Some(title) = titles.next() {
-            if title == "Team auswählen" {
+            if title == "Team auswählen" || title == "Select team" {
                 // alright!
             } else {
-                return Err("title is not 'Team auswählen'".into());
+                return Err(format!(
+                    "title is not 'Team auswählen' or 'Select team', but '{}'",
+                    title
+                )
+                .into());
             }
         } else {
             return Err("title missing".into());
@@ -90,8 +94,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .map(|x| x.inner_html());
         title = titles.next().ok_or("missing title")?;
     }
-    if title != "Termine" {
-        return Err("title is not 'Termine'".into());
+    if title != "Termine" && title != "Events" {
+        return Err(format!("title is not 'Termine' or 'Events', but '{}'", title).into());
     }
 
     // TODO parse trainings
@@ -142,6 +146,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .select(&participation_widget_buttons_selector)
             .next()
             .ok_or("missing .participation-widget-buttons")?;
+
+        let event_id_parts = panel
+            .value()
+            .id()
+            .ok_or("no panel id found")?
+            .split("-")
+            .collect::<Vec<_>>();
+
+        let event_kind = *event_id_parts
+            .get(1)
+            .ok_or("panel id is misformed (no event on index 1)")?;
+
+        if event_kind != "training" {
+            continue;
+        }
+
         let zusage = match widget_buttons.select(&selected_selector).next() {
             Some(selected_button) => {
                 match selected_button
@@ -149,9 +169,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     .attr("title")
                     .ok_or("missing selected_button attr 'title'")?
                 {
-                    "Zugesagt" => print_emojis(":check_mark:"),
-                    "Unsicher" => print_emojis(":red_question_mark:"),
-                    "Absagen / Abwesend" => print_emojis(":cross_mark:"),
+                    "Zugesagt" | "Confirmed" => print_emojis(":check_mark:"),
+                    "Unsicher" | "Unsure" => print_emojis(":red_question_mark:"),
+                    "Absagen / Abwesend" | "Declined / Absent" => print_emojis(":cross_mark:"),
                     other => {
                         return Err(
                             format!("Unknown selected Zusage button title '{other}'").into()
@@ -160,39 +180,34 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
             None => {
-                if event_title_html == "Training" {
-                    let training_id = panel
-                        .value()
-                        .attr("id")
-                        .ok_or("missing panel attr 'id'")?
-                        .strip_prefix("event-training-")
-                        .ok_or("panel attr 'id' does not start with 'event-training-'")?;
-                    log::info!("No Zusage yet for Training {training_id}");
-                    let res = client
-                        .post("https://www.spielerplus.de/events/ajax-participation-form")
-                        .form(&[
-                            ("Participation[participation]", "1"),
-                            ("Participation[reason]", "Dauerzusage"),
-                            ("Participation[type]", "training"),
-                            ("Participation[typeid]", training_id),
-                            ("Participation[user_id]", &user_id),
-                        ])
-                        .send()?;
-                    log::info!(
-                        "/events/ajax-participation-form response: {:?} {}",
-                        res.version(),
-                        res.status()
+                let training_id = panel
+                    .value()
+                    .attr("id")
+                    .ok_or("missing panel attr 'id'")?
+                    .strip_prefix("event-training-")
+                    .ok_or("panel attr 'id' does not start with 'event-training-'")?;
+                log::info!("No Zusage yet for Training {training_id}");
+                let res = client
+                    .post("https://www.spielerplus.de/events/ajax-participation-form")
+                    .form(&[
+                        ("Participation[participation]", "1"),
+                        ("Participation[reason]", "Dauerzusage"),
+                        ("Participation[type]", "training"),
+                        ("Participation[typeid]", training_id),
+                        ("Participation[user_id]", &user_id),
+                    ])
+                    .send()?;
+                log::info!(
+                    "/events/ajax-participation-form response: {:?} {}",
+                    res.version(),
+                    res.status()
+                );
+                if res.status() != reqwest::StatusCode::from_u16(200).unwrap() {
+                    return Err(
+                        "/events/ajax-participation-form response status is not '200 OK'".into(),
                     );
-                    if res.status() != reqwest::StatusCode::from_u16(200).unwrap() {
-                        return Err(
-                            "/events/ajax-participation-form response status is not '200 OK'"
-                                .into(),
-                        );
-                    }
-                    print_emojis(":pencil:")
-                } else {
-                    print_emojis(":right_arrow:")
                 }
+                print_emojis(":pencil:")
             }
         };
         println!(

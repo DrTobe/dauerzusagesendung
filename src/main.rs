@@ -186,7 +186,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                         .form(&[
                             ("Participation[participation]", "1"),
                             ("Participation[reason]", "Dauerzusage"),
-                            ("Participation[type]", "training"),
+                            ("Participation[type]", event_kind),
                             ("Participation[typeid]", training_id),
                             ("Participation[user_id]", &user_id),
                         ])
@@ -202,10 +202,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 .into(),
                         );
                     }
+                    print_emojis(":pencil:")
                 } else {
-                    print_emojis(":right_arrow:");
+                    print_emojis(":right_arrow:")
                 }
-                print_emojis(":pencil:")
             }
         };
         println!(
